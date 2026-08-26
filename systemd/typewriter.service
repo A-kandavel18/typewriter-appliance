@@ -1,0 +1,23 @@
+[unit]
+Description=Typewriter Writing Applicance
+After=systemd-user-sessions.service
+After=getty.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/root/.typewriter/venv/bin/python /root/.typewriter/app.py
+WorkingDirectory=/root/.typewriter
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Restart=always
+Restartsec=1
+User=root
+
+[Install]
+WantedBy=multi-user.target

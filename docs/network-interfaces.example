@@ -1,0 +1,21 @@
+#Example network configuration for the Typewriter appliance
+
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+allow-hotplug wlps2so
+cat > docs/network-interfaces.example <<'EOF'
+#Example network configuration for the Typewriter appliance
+
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+allow-hotplug wlps2s0
+
+iface wlp2s0 inet dhcp
+       wpa-ssid "<YOUR_WIFI_SSID>"
+       wpa-psk "<YOUR_WIFI_PASSWORD>"

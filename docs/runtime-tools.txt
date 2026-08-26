@@ -1,0 +1,5 @@
+/usr/bin/rclone
+/usr/bin/mount
+/usr/bin/umount
+/usr/bin/lsblk
+/usr/bin/sync

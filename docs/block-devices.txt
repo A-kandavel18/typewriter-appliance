@@ -1,0 +1,5 @@
+NAME     SIZE TYPE FSTYPE MOUNTPOINTS
+sda    238.5G disk        
+├─sda1   976M part vfat   /boot/efi
+├─sda2 225.7G part ext4   /
+└─sda3  11.9G part swap   [SWAP]
