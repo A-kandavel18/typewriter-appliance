@@ -1,169 +1,119 @@
 # Typewriter Appliance
 
-A distraction-free Debian writing appliance that boots directly into a full-screen terminal text editor.
+A distraction-free Debian writing appliance that boots directly into a full-screen terminal editor.
 
-The project turns a laptop into a dedicated writing machine. It stores a single continuously saved note, exposes only a small set of keyboard controls, and can export writing to removable storage or Google Drive.
+The application provides a small, keyboard-controlled writing environment with local document management, crash-resistant saving, revision snapshots, removable-drive export, spell checking, and Google Docs publishing. No desktop environment is required.
 
 ## Features
 
 - Full-screen terminal interface built with [Textual](https://textual.textualize.io/)
-- Automatic saving to `~/.typewriter/note.txt`
-- Persistent writing between restarts
-- Live word count
-- Battery percentage and charging status
-- Word-level spell checking
-- USB export
-- Google Drive text-file export through `rclone`
-- Keyboard-controlled shutdown
+- Multiple named documents with a keyboard-controlled library
+- Atomic autosaving only when text changes
+- Five-minute recovery revisions and manual save revisions
+- Migration of the original `~/.typewriter/note.txt`
+- Live word count, battery status, and word-level spell checking
+- Export of every document to a removable drive
+- Conversion and publishing to editable Google documents through `rclone`
+- Confirmation before clearing a document or powering off
 - Automatic startup on TTY1 through systemd
-- No desktop environment required
+- Operation as the unprivileged `writer` user
 
 ## Controls
 
 | Shortcut | Action |
 | --- | --- |
+| `Ctrl+N` | Create a document |
+| `Ctrl+O` | Open the document library |
+| `Ctrl+S` | Save and create a revision |
+| `Ctrl+R` | Rename the current document |
 | `Ctrl+G` | Check the word under the cursor |
-| `Ctrl+E` | Export the current note to USB |
-| `Ctrl+D` | Upload the current note to Google Drive |
-| `Ctrl+K` | Clear the current note |
-| `Ctrl+X` | Save, exit, and power off |
+| `Ctrl+E` | Export all documents to USB |
+| `Ctrl+D` | Publish or update the current Google document |
+| `Ctrl+K` | Confirm and clear the current document |
+| `Ctrl+X` | Confirm, save, and power off |
 
-## How it works
+## Storage
+
+Application data is stored under:
 
 ```text
-Debian boots
-    ↓
-systemd starts typewriter.service on TTY1
-    ↓
-Python virtual environment runs app.py
-    ↓
-Textual presents the full-screen editor
-    ↓
-The note is continuously saved to ~/.typewriter/note.txt
+~/.local/share/typewriter/
+├── documents/       # UTF-8 text, one file per document ID
+├── revisions/       # Timestamped recovery snapshots
+├── exports/
+└── library.json     # Titles, timestamps, active document, Google paths
 ```
 
-The application runs directly in the Linux console. The original appliance uses a systemd service that claims `/dev/tty1` and starts the Python application from `/root/.typewriter`.
+Set `TYPEWRITER_DATA_DIR` to use an isolated location during testing. On first launch, the application can import the original `~/.typewriter/note.txt` as **Imported Note** and retain `note.txt.migrated` as an additional copy.
 
 ## Repository layout
 
 ```text
 .
-├── app.py                  # Textual writing application
-├── requirements-full.txt   # Frozen Python environment
+├── app.py                    # Textual interface and appliance actions
+├── typewriter_core.py        # Document storage and atomic persistence
+├── google_publish.py         # Editable Google-document publishing
+├── requirements-full.txt     # Pinned Python dependencies
+├── tests/                    # Storage, document, and UI tests
 ├── systemd/
-│   └── typewriter.service  # Captured systemd service
-└── docs/                   # Sanitized system and hardware information
+│   ├── typewriter.service    # Non-root TTY1 service
+│   └── typewriter-poweroff   # Narrow shutdown sudoers rule
+└── docs/                     # Sanitized reference-system information
 ```
 
 ## Run manually
 
-Manual execution is the safest way to evaluate the current code without changing a machine's boot configuration.
-
-### Requirements
-
-- Debian or another modern Linux distribution
-- Python 3.10 or newer
-- A compatible terminal
-- Optional: `rclone` for Google Drive export
-- Optional: permission to mount removable storage for USB export
-
-### Setup
-
 ```bash
 git clone https://github.com/A-kandavel18/typewriter-appliance.git
 cd typewriter-appliance
-
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -r requirements-full.txt
-
 python app.py
 ```
 
-The note is created automatically at:
+Run the tests with:
 
-```text
-~/.typewriter/note.txt
+```bash
+python -m unittest discover -s tests -v
 ```
 
 ## USB export
 
-Pressing `Ctrl+E`:
+`Ctrl+E` requires exactly one removable drive. The application mounts it through `udisksctl`, creates a `Typewriter` directory, writes every document with a safe human-readable filename, adds `manifest.json`, flushes pending writes, and unmounts the device. It never formats a drive.
 
-1. Searches for the first removable block-device partition.
-2. Mounts it at `/mnt/usb`.
-3. Copies `note.txt` to the mounted device.
-4. Calls `sync`.
-5. Unmounts the device.
+## Google Docs publishing
 
-The application must have sufficient permission to mount and unmount the device.
+Google publishing requires an `rclone` Drive remote named `gdrive`. The application creates a small DOCX representation locally and asks the Drive backend to import it as an editable Google document under `Typewriter/`. The stable remote path is retained per local document so later publishes update the same destination.
 
-## Google Drive export
+The repository never contains the `rclone` configuration, OAuth token, or other account credentials.
 
-Pressing `Ctrl+D` writes the current text to a temporary file and runs:
+## systemd service
+
+The supplied unit runs `/opt/typewriter/app.py` as `writer` on `/dev/tty1`. Documents remain under `/home/writer`, while application code and its virtual environment live under `/opt/typewriter`.
+
+Only shutdown needs elevation. `systemd/typewriter-poweroff` permits `writer` to execute exactly `/usr/bin/systemctl poweroff`; it does not grant unrestricted passwordless sudo access.
+
+Validate the unit and sudoers rule before installation:
 
 ```bash
-rclone copyto TEMPORARY_FILE gdrive:Typewriter/TypewriterDoc.txt
+sudo systemd-analyze verify systemd/typewriter.service
+sudo visudo -cf systemd/typewriter-poweroff
 ```
-
-This requires a separately configured `rclone` remote named `gdrive`. The repository does not include that configuration or any account credentials.
-
-This feature uploads a plain-text file to Google Drive; it does not create a native Google Docs document.
-
-## Spell checking
-
-Pressing `Ctrl+G` checks the word under the cursor using `pyspellchecker`. The result or suggested spelling appears in the message bar without automatically changing the document.
 
 ## Reference system
 
-The captured appliance runs:
+The reference appliance uses Debian GNU/Linux 13 on x86-64 and runs the editor as a system service on TTY1. Sanitized CPU, memory, storage, kernel, service, and boot snapshots are available under [`docs/`](docs/).
 
-- Debian GNU/Linux 13
-- Linux on x86-64
-- Intel Core i7-7500U
-- 12 GiB of installed RAM
-- A 238.5 GB storage device
-- Python inside a dedicated virtual environment
-- The application as a system service on TTY1
+## Safety and limitations
 
-Additional sanitized information is available under [`docs/`](docs/), including CPU, memory, storage, kernel, service state, and boot configuration snapshots.
-
-## Important safety notes
-
-- `Ctrl+K` immediately clears the editor and overwrites the saved note.
-- `Ctrl+X` saves the note and requests an immediate system power-off.
-- The captured service runs the application as `root`.
-- USB export mounts the first removable partition it finds.
-- Keep external backups while using the prototype.
-- Test the application manually before enabling it as a boot service on another computer.
-
-## Known limitations
-
-- The captured systemd unit contains paths specific to the original machine.
-- Its `[unit]` header is lowercase; systemd expects `[Unit]` and reports that it ignored the existing section.
-- Clear and shutdown actions do not ask for confirmation.
-- The note is rewritten frequently rather than saved through an atomic replacement operation.
-- There is no built-in revision history or deleted-note recovery.
-- USB selection is ambiguous when multiple removable partitions are connected.
-- USB and shutdown operations depend on elevated system permissions.
-- There is no automated installer, test suite, or packaged release.
-- The service definition should not be installed unchanged on another system.
+- Keep independent backups of important writing even though atomic saves and revisions are enabled.
+- USB export intentionally refuses to choose when more than one removable drive is present.
+- Google publishing requires network access and an authenticated `gdrive` remote.
+- The program currently provides one-way publishing; edits made in Google Docs are not merged back locally.
+- Revision snapshots are retained until manually archived or removed.
+- A license has not yet been selected, so the source is viewable but no redistribution rights should be assumed.
 
 ## Sensitive information
 
-The repository intentionally excludes:
-
-- Personal notes
-- Wi-Fi credentials
-- `rclone` configuration
-- API tokens
-- SSH keys
-- Environment files
-- Other machine credentials
-
-See [`.gitignore`](.gitignore) for the current exclusions.
-
-## License
-
-A license has not yet been selected. Until one is added, the source is publicly viewable but should not be assumed to grant permission for redistribution or derivative use.
+Personal notes, Wi-Fi credentials, OAuth tokens, `rclone` configuration, SSH keys, and environment files are excluded from the repository.

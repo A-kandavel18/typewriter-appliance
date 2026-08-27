@@ -13,6 +13,8 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+.venv/
+*.pyc
 
 *.tmp
 *.swp
