@@ -10,6 +10,7 @@ from pathlib import Path
 
 from spellchecker import SpellChecker
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, Static, TextArea
@@ -89,11 +90,15 @@ class TypewriterApp(App):
     #library { width: 70; height: 70%; padding: 1 2; border: round #888; background: #171a20; }
     """
     BINDINGS = [
-        ("ctrl+n", "new_document", "New"), ("ctrl+o", "open_document", "Open"),
-        ("ctrl+s", "save_document", "Save"), ("ctrl+r", "rename_document", "Rename"),
-        ("ctrl+e", "export_usb", "USB"), ("ctrl+d", "publish_google", "Google"),
-        ("ctrl+g", "spell_check", "Spell"), ("ctrl+k", "clear_document", "Clear"),
-        ("ctrl+x", "shutdown", "Shutdown"),
+        Binding("ctrl+n", "new_document", "New", priority=True),
+        Binding("ctrl+o", "open_document", "Open", priority=True),
+        Binding("ctrl+s", "save_document", "Save", priority=True),
+        Binding("ctrl+r", "rename_document", "Rename", priority=True),
+        Binding("ctrl+e", "export_usb", "USB", priority=True),
+        Binding("ctrl+d", "publish_google", "Google", priority=True),
+        Binding("ctrl+g", "spell_check", "Spell", priority=True),
+        Binding("ctrl+k", "clear_document", "Clear", priority=True),
+        Binding("ctrl+x", "shutdown", "Shutdown", priority=True),
     ]
 
     def __init__(self):
@@ -271,7 +276,12 @@ class TypewriterApp(App):
         self._save()
         try:
             publisher = GooglePublisher.from_rclone("gdrive")
-            file_id = publisher.publish(self.store.active.title, self.editor.text, self.store.active.google_file_id)
+            file_id = publisher.publish(
+                self.store.active.title,
+                self.editor.text,
+                self.store.active.google_file_id,
+                self.store.active.id,
+            )
             self.store.set_google_file_id(file_id)
             self.message.update(f"Published '{self.store.active.title}' to Google Docs")
         except Exception as error:

@@ -45,8 +45,10 @@ class GooglePublisher:
             raise RuntimeError(result.stderr.strip() or "Google Drive is unavailable")
         return cls(remote)
 
-    def publish(self, title: str, content: str, remote_path: str | None = None) -> str:
-        destination = remote_path or f"Typewriter/{safe_filename(title)}.docx"
+    def publish(self, title: str, content: str, remote_path: str | None = None,
+                document_id: str | None = None) -> str:
+        suffix = f"--{document_id[:8]}" if document_id else ""
+        destination = remote_path or f"Typewriter/{safe_filename(title)}{suffix}.docx"
         with tempfile.TemporaryDirectory() as folder:
             local = Path(folder) / "document.docx"
             make_docx(local, content)
