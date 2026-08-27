@@ -1,22 +1,22 @@
 # Typewriter Appliance
 
-A distraction-free Debian writing appliance that boots directly into a terminal-based text editor.
+A distraction-free Debian writing appliance that boots directly into a full-screen terminal text editor.
 
-The current prototype provides automatic saving, battery status, spell checking, USB export, Google Drive export through `rclone`, and keyboard-controlled shutdown. The longer-term goal is to pair a low-memory client with an optional self-hosted Kubernetes language service that preserves a writer's individual style instead of normalizing every sentence into conventional professional prose.
+The project turns a laptop into a dedicated writing machine. It stores a single continuously saved note, exposes only a small set of keyboard controls, and can export writing to removable storage or Google Drive.
 
-> **Project status:** Early prototype. The appliance works on its original Debian laptop, but installation, permissions, destructive-action safeguards, and the cross-platform AI backend are still under development.
-
-## Current features
+## Features
 
 - Full-screen terminal interface built with [Textual](https://textual.textualize.io/)
 - Automatic saving to `~/.typewriter/note.txt`
-- Word count and battery status
+- Persistent writing between restarts
+- Live word count
+- Battery percentage and charging status
 - Word-level spell checking
 - USB export
-- Google Drive text-file export using `rclone`
+- Google Drive text-file export through `rclone`
 - Keyboard-controlled shutdown
-- systemd-based startup on the original appliance
-- Sanitized system and hardware snapshots under `docs/`
+- Automatic startup on TTY1 through systemd
+- No desktop environment required
 
 ## Controls
 
@@ -28,47 +28,44 @@ The current prototype provides automatic saving, battery status, spell checking,
 | `Ctrl+K` | Clear the current note |
 | `Ctrl+X` | Save, exit, and power off |
 
-### Safety warning
-
-In the current prototype, `Ctrl+K` clears the note immediately and `Ctrl+X` requests an immediate shutdown. Use it only on a test appliance and keep external backups. Confirmation prompts and automatic revision recovery are planned before a stable release.
-
-## Current architecture
+## How it works
 
 ```text
-Debian appliance
-├── systemd service on tty1
-├── Python virtual environment
-├── Textual editor
-├── local note storage
-├── pyspellchecker
-├── removable USB export
-└── rclone Google Drive export
+Debian boots
+    ↓
+systemd starts typewriter.service on TTY1
+    ↓
+Python virtual environment runs app.py
+    ↓
+Textual presents the full-screen editor
+    ↓
+The note is continuously saved to ~/.typewriter/note.txt
 ```
 
-The original reference machine runs Debian 13 on an Intel Core i7-7500U system. Captured system information is available in [`docs/`](docs/).
+The application runs directly in the Linux console. The original appliance uses a systemd service that claims `/dev/tty1` and starts the Python application from `/root/.typewriter`.
 
 ## Repository layout
 
 ```text
 .
-├── app.py                  # Current Textual application
-├── requirements-full.txt   # Frozen prototype environment
+├── app.py                  # Textual writing application
+├── requirements-full.txt   # Frozen Python environment
 ├── systemd/
-│   └── typewriter.service  # Captured service definition
+│   └── typewriter.service  # Captured systemd service
 └── docs/                   # Sanitized system and hardware information
 ```
 
-## Run the prototype manually
+## Run manually
 
-The safest current way to evaluate the application is manually from a terminal rather than installing the captured systemd unit.
+Manual execution is the safest way to evaluate the current code without changing a machine's boot configuration.
 
 ### Requirements
 
 - Debian or another modern Linux distribution
 - Python 3.10 or newer
-- A terminal supporting Textual
+- A compatible terminal
 - Optional: `rclone` for Google Drive export
-- Optional: mount permissions for USB export
+- Optional: permission to mount removable storage for USB export
 
 ### Setup
 
@@ -84,147 +81,89 @@ python -m pip install -r requirements-full.txt
 python app.py
 ```
 
-The repository does not contain an `rclone` configuration, Wi-Fi credentials, private keys, personal notes, or other secrets.
+The note is created automatically at:
+
+```text
+~/.typewriter/note.txt
+```
+
+## USB export
+
+Pressing `Ctrl+E`:
+
+1. Searches for the first removable block-device partition.
+2. Mounts it at `/mnt/usb`.
+3. Copies `note.txt` to the mounted device.
+4. Calls `sync`.
+5. Unmounts the device.
+
+The application must have sufficient permission to mount and unmount the device.
+
+## Google Drive export
+
+Pressing `Ctrl+D` writes the current text to a temporary file and runs:
+
+```bash
+rclone copyto TEMPORARY_FILE gdrive:Typewriter/TypewriterDoc.txt
+```
+
+This requires a separately configured `rclone` remote named `gdrive`. The repository does not include that configuration or any account credentials.
+
+This feature uploads a plain-text file to Google Drive; it does not create a native Google Docs document.
+
+## Spell checking
+
+Pressing `Ctrl+G` checks the word under the cursor using `pyspellchecker`. The result or suggested spelling appears in the message bar without automatically changing the document.
+
+## Reference system
+
+The captured appliance runs:
+
+- Debian GNU/Linux 13
+- Linux on x86-64
+- Intel Core i7-7500U
+- 12 GiB of installed RAM
+- A 238.5 GB storage device
+- Python inside a dedicated virtual environment
+- The application as a system service on TTY1
+
+Additional sanitized information is available under [`docs/`](docs/), including CPU, memory, storage, kernel, service state, and boot configuration snapshots.
+
+## Important safety notes
+
+- `Ctrl+K` immediately clears the editor and overwrites the saved note.
+- `Ctrl+X` saves the note and requests an immediate system power-off.
+- The captured service runs the application as `root`.
+- USB export mounts the first removable partition it finds.
+- Keep external backups while using the prototype.
+- Test the application manually before enabling it as a boot service on another computer.
 
 ## Known limitations
 
-- The captured systemd unit still contains the original machine's `/root/.typewriter` paths and root execution model.
-- Its `[unit]` header must be corrected to `[Unit]`; current logs show that systemd ignored the lowercase section.
-- The application performs privileged USB mounting and shutdown operations directly.
-- Clear and shutdown actions do not yet require confirmation.
-- Saving rewrites the note frequently instead of using atomic revisions.
-- USB export selects the first removable partition and needs safer device handling.
-- “Save to Google Docs” currently uploads a text file to Google Drive rather than creating a native Google Docs document.
-- Installation is not yet reproducible across machines.
-- There are no automated tests or packaged releases yet.
+- The captured systemd unit contains paths specific to the original machine.
+- Its `[unit]` header is lowercase; systemd expects `[Unit]` and reports that it ignored the existing section.
+- Clear and shutdown actions do not ask for confirmation.
+- The note is rewritten frequently rather than saved through an atomic replacement operation.
+- There is no built-in revision history or deleted-note recovery.
+- USB selection is ambiguous when multiple removable partitions are connected.
+- USB and shutdown operations depend on elevated system permissions.
+- There is no automated installer, test suite, or packaged release.
+- The service definition should not be installed unchanged on another system.
 
-## Planned architecture
+## Sensitive information
 
-The intended platform separates the constrained writing appliance from expensive language-model inference:
+The repository intentionally excludes:
 
-```text
-Low-memory client
-Debian / Raspberry Pi
-        │
-        │ authenticated request
-        ▼
-User-owned backend
-Windows / macOS / Linux
-        │
-        ▼
-K3s or compatible local Kubernetes
-├── request gateway
-├── style-preserving grammar API
-├── LLM inference service
-├── ephemeral document-analysis Jobs
-└── health and resource monitoring
-```
+- Personal notes
+- Wi-Fi credentials
+- `rclone` configuration
+- API tokens
+- SSH keys
+- Environment files
+- Other machine credentials
 
-The client remains useful offline. Kubernetes and the model run on a modern computer supplied by the user.
-
-## Style-preserving language assistance
-
-The planned language service is deliberately different from a conventional “professional tone” grammar checker. It should distinguish probable errors from intentional stylistic choices such as:
-
-- Sentence fragments used for rhythm
-- Long or recursive sentences
-- Repetition for emphasis
-- Sparse or unconventional punctuation
-- Dialect and colloquial language
-- Stream-of-consciousness structures
-
-The service will return structured, minimal suggestions and will never silently rewrite the document.
-
-```json
-{
-  "assessment": "probable_error",
-  "confidence": 0.97,
-  "original": "The characters motivation changes.",
-  "suggestion": "The character's motivation changes.",
-  "reason": "A possessive apostrophe appears to be missing."
-}
-```
-
-Users will be able to accept, reject, or permanently preserve a construction in their personal style profile.
-
-## Installation goal
-
-The eventual user experience should require no Kubernetes knowledge:
-
-```text
-Modern computer:
-    typewriter-server install
-    → hardware detection
-    → local Kubernetes setup
-    → model recommendation
-    → service deployment
-    → pairing code
-
-Writing appliance:
-    typewriter-client install
-    → enter pairing code
-    → write offline or request private AI review
-```
-
-Linux backends can use native K3s. Windows and macOS will use a managed Linux/Kubernetes layer. CPU inference will be the portable baseline, with GPU acceleration treated as an optional platform-specific capability.
-
-## Roadmap
-
-### Appliance stabilization
-
-- [ ] Correct and harden the systemd service
-- [ ] Run the editor as an unprivileged user
-- [ ] Implement atomic saving and timestamped revisions
-- [ ] Add confirmation for clear and shutdown
-- [ ] Make USB selection, verification, and unmounting safer
-- [ ] Add installation, upgrade, rollback, and uninstall scripts
-- [ ] Add automated tests
-
-### Language service
-
-- [ ] Add asynchronous paragraph review to the client
-- [ ] Define versioned request and response schemas
-- [ ] Run a local `llama.cpp` inference service
-- [ ] Add offline fallback and request timeouts
-- [ ] Add editable style profiles
-- [ ] Build a style-preservation evaluation suite
-
-### Kubernetes backend
-
-- [ ] Containerize the grammar API and inference server
-- [ ] Package the backend as a Helm chart
-- [ ] Add probes, resource limits, and non-root security contexts
-- [ ] Add node-aware model placement
-- [ ] Add ephemeral Jobs for longer document analysis
-- [ ] Add metrics, failure tests, and rollback
-- [ ] Produce AMD64 and ARM64 images
-
-### Open platform
-
-- [ ] Define a versioned writing-service manifest
-- [ ] Provide a reference grammar service
-- [ ] Add manifest validation and contribution documentation
-- [ ] Create a GitHub-hosted service catalog
-- [ ] Build guided installers for Linux, Windows, and macOS
-- [ ] Publish a reproducible 1 GB Raspberry Pi reference appliance
-
-## Design principles
-
-1. Writing must continue when the network or AI backend is unavailable.
-2. The appliance should remain below a documented memory budget.
-3. No model may modify a document without explicit user approval.
-4. Private writing must not appear in logs.
-5. Personal style preferences must be inspectable, exportable, and deletable.
-6. Users provide their own compute; the project does not require a central paid service.
-7. Advanced infrastructure should remain invisible to ordinary users.
-8. Every release should be reproducible and recoverable.
-
-## Contributing
-
-The project is still defining its stable interfaces. Bug reports, hardware results, installation notes, accessibility feedback, and style-preservation examples are welcome through GitHub issues.
-
-Please do not commit Wi-Fi credentials, `rclone` configuration, API tokens, SSH keys, personal notes, Kubernetes credentials, or model files without redistribution permission.
+See [`.gitignore`](.gitignore) for the current exclusions.
 
 ## License
 
-A project license has not yet been selected. Until one is added, the source is publicly viewable but should not be assumed to grant permission for redistribution or derivative use.
+A license has not yet been selected. Until one is added, the source is publicly viewable but should not be assumed to grant permission for redistribution or derivative use.
