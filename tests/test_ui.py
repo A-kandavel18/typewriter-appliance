@@ -64,6 +64,20 @@ class InterfaceTests(unittest.TestCase):
 
             asyncio.run(exercise())
 
+    def test_tab_inserts_real_tab_character(self):
+        with tempfile.TemporaryDirectory() as folder:
+            os.environ["TYPEWRITER_DATA_DIR"] = folder
+            from app import TypewriterApp
+
+            async def exercise():
+                app = TypewriterApp()
+                async with app.run_test() as pilot:
+                    await pilot.press("tab")
+                    await pilot.pause()
+                    self.assertTrue(app.editor.text.startswith("\t"))
+
+            asyncio.run(exercise())
+
 
 if __name__ == "__main__":
     unittest.main()

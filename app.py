@@ -145,7 +145,7 @@ class TypewriterApp(App):
     def on_key(self, event) -> None:
         if event.key == "tab":
             event.stop()
-            self.editor.insert("    ")
+            self.editor.insert("\t")
 
     def _save(self, revision: bool = False) -> None:
         self.store.save(self.editor.text, make_revision=revision)
